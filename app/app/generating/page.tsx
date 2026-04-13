@@ -50,6 +50,11 @@ function GeneratingContent() {
       }),
     });
 
+    if (res.status === 403) {
+      router.push('/app?limit_reached=1')
+      return
+    }
+
     if (res.ok) {
       router.push(`/app/story/${storyId}`);
     }

@@ -1,8 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import UpgradeBanner from "./upgrade-banner";
 
-export default async function AppHomePage() {
+export default async function AppHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const params = await searchParams
+  const showLimitBanner = params?.limit_reached === '1'
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/signin");
@@ -27,6 +34,8 @@ export default async function AppHomePage() {
         Hi, {child.name}&apos;s family!
       </h1>
       <p className="text-stone-500 mb-10">Ready for a new adventure?</p>
+
+      {showLimitBanner && <UpgradeBanner />}
 
       <Link
         href="/app/pick"

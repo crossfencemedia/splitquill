@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 import { getReadingLevelInstruction, calcAgeYears } from '@/lib/reading-level';
+import { TIER_LIMITS, Tier } from '@/lib/tier-limits';
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (service role — bypasses RLS for server writes)
@@ -136,6 +137,46 @@ export async function POST(request: Request) {
   }
   const ageYears: number = childAge ?? calcAgeYears(childBirthdate)
 
+  // Resolve userId from the story's child → parent relationship
+  const { data: storyRow } = await supabase
+    .from('stories')
+    .select('child_id, children(parent_id)')
+    .eq('id', storyId)
+    .single()
+
+  const userId = (storyRow?.children as { parent_id: string } | null)?.parent_id
+  if (!userId) return NextResponse.json({ error: 'Story not found' }, { status: 404 })
+
+  // Check subscription tier + story count
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('tier')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .single()
+
+  const tier = ((sub?.tier) ?? 'free') as Tier
+  const limit = TIER_LIMITS[tier].storiesPerMonth
+
+  const now = new Date()
+  const periodStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+
+  const { data: countRow } = await supabase
+    .from('story_counts')
+    .select('count')
+    .eq('user_id', userId)
+    .eq('period_start', periodStart)
+    .single()
+
+  const used = countRow?.count ?? 0
+
+  if (used >= limit) {
+    return NextResponse.json(
+      { error: 'Story limit reached', tier, limit },
+      { status: 403 }
+    )
+  }
+
   const gender = childGender === "male" ? "male" : childGender === "female" ? "female" : null;
   const pronoun = gender === "male" ? "He" : gender === "female" ? "She" : "They";
   const possessive = gender === "male" ? "his" : gender === "female" ? "her" : "their";
@@ -187,6 +228,12 @@ Output valid JSON only.`;
       console.error("Supabase update error:", error);
       return NextResponse.json({ error: "Failed to save story" }, { status: 500 });
     }
+
+    // Increment story count (MVP: no race condition protection — fine for <100 users)
+    await supabase.from('story_counts').upsert(
+      { user_id: userId, period_start: periodStart, count: used + 1 },
+      { onConflict: 'user_id,period_start' }
+    )
 
     return NextResponse.json({ ok: true });
   } catch (err) {
