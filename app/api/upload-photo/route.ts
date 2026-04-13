@@ -15,6 +15,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing photo or childId' }, { status: 400 })
   }
 
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return NextResponse.json({ error: 'Invalid file type. Use JPEG, PNG, or WebP.' }, { status: 400 })
+  }
+  const MAX_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
+  if (file.size > MAX_SIZE_BYTES) {
+    return NextResponse.json({ error: 'File too large. Maximum 5MB.' }, { status: 400 })
+  }
+
   const { data: child } = await serviceClient
     .from('children')
     .select('id, photo_unlocked')
@@ -32,7 +41,7 @@ export async function POST(request: NextRequest) {
 
   const { error: uploadError } = await serviceClient.storage
     .from('child-photos')
-    .upload(path, buffer, { contentType: 'image/jpeg', upsert: true })
+    .upload(path, buffer, { contentType: file.type, upsert: true })
 
   if (uploadError) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 })

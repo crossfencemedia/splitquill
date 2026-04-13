@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from '@/lib/supabase/server'
+import { serviceClient } from '@/lib/supabase/service'
 
 export const maxDuration = 60;
-
-const supabase = createSupabaseClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SECRET_KEY!
-);
 
 const STYLE_PREAMBLE =
   "Children's storybook illustration, Pixar-inspired digital art style. " +
@@ -23,12 +19,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  const authClient = await createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   let appearanceDescription = ''
   if (childId) {
-    const { data: child } = await supabase
+    const { data: child } = await serviceClient
       .from('children')
       .select('appearance_description')
       .eq('id', childId)
+      .eq('parent_id', user.id)
       .single()
     appearanceDescription = child?.appearance_description ?? ''
   }
@@ -70,7 +71,7 @@ No text, no words, no letters, no numbers anywhere in the image.`;
     const path = `${storyId}/${panelId}.jpeg`;
     const buffer = Buffer.from(imageData, "base64");
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await serviceClient.storage
       .from("story-images")
       .upload(path, buffer, { contentType: mimeType, upsert: true });
 
@@ -79,14 +80,14 @@ No text, no words, no letters, no numbers anywhere in the image.`;
       return NextResponse.json({ error: "Upload failed" }, { status: 500 });
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = serviceClient.storage
       .from("story-images")
       .getPublicUrl(path);
 
     const imageUrl = urlData.publicUrl;
 
     // Update the panel's image_url in the story JSON
-    const { data: storyRow } = await supabase
+    const { data: storyRow } = await serviceClient
       .from("stories")
       .select("panels")
       .eq("id", storyId)
@@ -97,7 +98,7 @@ No text, no words, no letters, no numbers anywhere in the image.`;
       const updatedPanels = storyData.panels.map((p) =>
         p.id === panelId ? { ...p, image_url: imageUrl } : p
       );
-      await supabase
+      await serviceClient
         .from("stories")
         .update({ panels: { ...storyData, panels: updatedPanels } })
         .eq("id", storyId);
