@@ -1,0 +1,156 @@
+'use client'
+import { useEffect, useState, useRef } from 'react'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import Image from 'next/image'
+
+type Child = {
+  id: string
+  name: string
+  photo_url: string | null
+  photo_unlocked: boolean
+}
+
+export default function EditChildPage() {
+  const { id } = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const supabase = createClient()
+  const [child, setChild] = useState<Child | null>(null)
+  const [gateSent, setGateSent] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [describing, setDescribing] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const justUnlocked = searchParams.get('photo_unlocked') === '1'
+
+  useEffect(() => {
+    supabase
+      .from('children')
+      .select('id, name, photo_url, photo_unlocked')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => setChild(data))
+  }, [id])
+
+  async function sendEmailGate() {
+    setGateSent(true)
+    await fetch('/api/email-gate/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId: id }),
+    })
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    const form = new FormData()
+    form.append('photo', file)
+    form.append('childId', id)
+    const res = await fetch('/api/upload-photo', { method: 'POST', body: form })
+    const { photoUrl } = await res.json()
+    setChild(c => c ? { ...c, photo_url: photoUrl } : c)
+    setUploading(false)
+
+    setDescribing(true)
+    await fetch('/api/describe-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId: id }),
+    })
+    setDescribing(false)
+  }
+
+  if (!child) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <p className="text-stone-500">Loading...</p>
+      </div>
+    )
+  }
+
+  const isUnlocked = child.photo_unlocked || justUnlocked
+
+  return (
+    <div className="min-h-screen bg-stone-50 p-6">
+      <div className="max-w-md mx-auto">
+        <h1 className="text-2xl font-bold text-stone-900 mb-6">{child.name}</h1>
+
+        <div className="bg-white rounded-2xl p-6 shadow-sm mb-4">
+          <h2 className="font-semibold text-stone-800 mb-4">Story Photo</h2>
+          <p className="text-stone-500 text-sm mb-4">
+            {child.name}&apos;s photo lets them star as the hero in every illustration.
+          </p>
+
+          {child.photo_url && (
+            <div className="mb-4 flex justify-center">
+              <Image
+                src={child.photo_url}
+                alt={child.name}
+                width={128}
+                height={128}
+                className="w-32 h-32 rounded-full object-cover"
+              />
+            </div>
+          )}
+
+          {!isUnlocked && !gateSent && (
+            <>
+              <div className="bg-purple-50 rounded-xl p-4 mb-4 text-sm text-purple-800">
+                A parent confirmation is required before uploading a child&apos;s photo. We&apos;ll send a secure link to your email.
+              </div>
+              <button
+                onClick={sendEmailGate}
+                className="w-full bg-[#7C3AED] text-white py-3 rounded-2xl font-semibold"
+              >
+                Send Confirmation Link
+              </button>
+            </>
+          )}
+
+          {!isUnlocked && gateSent && (
+            <div className="text-center py-6">
+              <p className="text-stone-600 text-sm">
+                Check your email and click the confirmation link to unlock photo upload.
+              </p>
+            </div>
+          )}
+
+          {isUnlocked && (
+            <>
+              {(uploading || describing) && (
+                <p className="text-stone-500 text-sm text-center mb-3">
+                  {uploading ? 'Uploading photo...' : 'Analyzing appearance...'}
+                </p>
+              )}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || describing}
+                className="w-full border-2 border-dashed border-purple-300 rounded-2xl py-5 text-purple-600 font-medium hover:border-purple-500 transition-colors disabled:opacity-50"
+              >
+                {child.photo_url ? '↑ Change Photo' : '+ Upload Photo'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handlePhotoUpload}
+              />
+            </>
+          )}
+        </div>
+
+        <button
+          onClick={() => router.push('/app/children')}
+          className="block text-center text-stone-500 text-sm w-full"
+        >
+          ← Back to My Children
+        </button>
+      </div>
+    </div>
+  )
+}
