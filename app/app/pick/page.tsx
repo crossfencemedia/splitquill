@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const PREMISES = [
@@ -39,6 +39,7 @@ const PREMISES = [
 
 export default function PremisePickerPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -50,18 +51,23 @@ export default function PremisePickerPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/signin"); return; }
 
-    const { data: children } = await supabase
-      .from("children")
-      .select("id")
-      .eq("parent_id", user.id)
-      .limit(1);
+    // Use child_id from query param if provided, otherwise fall back to first child
+    let childId = searchParams.get("child_id");
+    if (!childId) {
+      const { data: children } = await supabase
+        .from("children")
+        .select("id")
+        .eq("parent_id", user.id)
+        .limit(1);
 
-    if (!children?.length) { router.push("/app/profile/new"); return; }
+      if (!children?.length) { router.push("/app/profile/new"); return; }
+      childId = children[0].id;
+    }
 
     const { data: story, error } = await supabase
       .from("stories")
       .insert({
-        child_id: children[0].id,
+        child_id: childId,
         premise_id: selected,
         status: "generating",
       })
