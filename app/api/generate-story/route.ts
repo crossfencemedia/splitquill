@@ -128,20 +128,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown premise" }, { status: 400 });
   }
 
+  if (childAge == null && !childBirthdate) {
+    return NextResponse.json(
+      { error: 'childAge or childBirthdate is required' },
+      { status: 400 }
+    )
+  }
+  const ageYears: number = childAge ?? calcAgeYears(childBirthdate)
+
   const gender = childGender === "male" ? "male" : childGender === "female" ? "female" : null;
   const pronoun = gender === "male" ? "He" : gender === "female" ? "She" : "They";
   const possessive = gender === "male" ? "his" : gender === "female" ? "her" : "their";
 
-  const userPrompt = `Write a complete branching story for ${childName}, age ${childAge}.
+  const readingReminder = ageYears <= 6
+    ? 'FK Grade 1, 8-word sentence cap'
+    : ageYears <= 8
+      ? 'FK Grade 2-3, 12-word sentence cap'
+      : 'FK Grade 3-4, 15-word sentence cap'
+
+  const userPrompt = `Write a complete branching story for ${childName}, age ${ageYears}.
 ${pronoun} is the hero of this story. Use ${possessive} name throughout.
 Pronoun: ${pronoun} / ${possessive}
 
 ${premise.prompt}
 
-Remember: FK Grade 2-3, 12-word sentence cap, faith beat in p4a and p4b.
+Remember: ${readingReminder}, faith beat in p4a and p4b.
 Output valid JSON only.`;
 
-  const ageYears: number = childAge ?? calcAgeYears(childBirthdate)
   const systemPrompt = buildSystemPrompt(ageYears)
 
   try {
