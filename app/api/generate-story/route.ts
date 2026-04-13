@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient } from '@/lib/supabase/server';
 import { GoogleGenAI } from "@google/genai";
 import { getReadingLevelInstruction, calcAgeYears } from '@/lib/reading-level';
 import { TIER_LIMITS, Tier } from '@/lib/tier-limits';
@@ -118,7 +119,12 @@ and everyone laughing together.`,
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
-  const { storyId, premiseId, childName, childAge, childGender, childBirthdate } = await request.json();
+  const body = await request.json();
+  const { storyId, premiseId, childName, childAge, childGender, childBirthdate } = body;
+
+  const authClient = await createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   if (!storyId || !premiseId || !childName) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -146,6 +152,10 @@ export async function POST(request: Request) {
 
   const userId = (storyRow?.children as { parent_id: string } | null)?.parent_id
   if (!userId) return NextResponse.json({ error: 'Story not found' }, { status: 404 })
+
+  if (userId !== user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   // Check subscription tier + story count
   const { data: sub } = await supabase
@@ -229,11 +239,11 @@ Output valid JSON only.`;
       return NextResponse.json({ error: "Failed to save story" }, { status: 500 });
     }
 
-    // Increment story count (MVP: no race condition protection — fine for <100 users)
-    await supabase.from('story_counts').upsert(
-      { user_id: userId, period_start: periodStart, count: used + 1 },
-      { onConflict: 'user_id,period_start' }
-    )
+    // Atomic story count increment via Postgres RPC (avoids race condition)
+    await supabase.rpc('increment_story_count', {
+      p_user_id: userId,
+      p_period_start: periodStart,
+    })
 
     return NextResponse.json({ ok: true });
   } catch (err) {

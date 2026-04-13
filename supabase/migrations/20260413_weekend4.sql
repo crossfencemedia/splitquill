@@ -40,3 +40,14 @@ ALTER TABLE story_counts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view own story counts" ON story_counts
   FOR SELECT USING (auth.uid() = user_id);
+
+-- Atomic story count increment (avoids race condition in upsert)
+CREATE OR REPLACE FUNCTION increment_story_count(p_user_id uuid, p_period_start date)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO story_counts (user_id, period_start, count)
+  VALUES (p_user_id, p_period_start, 1)
+  ON CONFLICT (user_id, period_start)
+  DO UPDATE SET count = story_counts.count + 1;
+END;
+$$;
