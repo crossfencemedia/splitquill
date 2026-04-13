@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
+import { getReadingLevelInstruction, calcAgeYears } from '@/lib/reading-level';
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (service role — bypasses RLS for server writes)
@@ -14,12 +15,12 @@ const supabase = createSupabaseClient(
 // Narrative Engine (inline — mirrors pipeline/narrative_engine.py logic)
 // ---------------------------------------------------------------------------
 
-const SYSTEM_PROMPT = `You are a children's storybook author writing for kids ages 5-9.
+function buildSystemPrompt(childAge: number): string {
+  const readingLevel = getReadingLevelInstruction(childAge)
+  return `You are a children's storybook author writing for kids ages 5-9.
 
-READING LEVEL: Flesch-Kincaid Grade 2-3. This is non-negotiable.
-- Maximum sentence length: 12 words
-- Use concrete, simple vocabulary only
-- No literary constructions. No metaphors. Short sentences.
+READING LEVEL:
+${readingLevel}
 
 STORY STRUCTURE — 17 panels, branching:
 Shared: p1, p2, p3
@@ -74,7 +75,8 @@ OUTPUT: Valid JSON only. No markdown. No explanation. Use this exact structure:
     "total_panels": 17,
     "unique_paths": 4
   }
-}`;
+}`
+}
 
 const PREMISES: Record<string, { name: string; prompt: string }> = {
   "space-rescue": {
@@ -115,7 +117,7 @@ and everyone laughing together.`,
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
-  const { storyId, premiseId, childName, childAge, childGender } = await request.json();
+  const { storyId, premiseId, childName, childAge, childGender, childBirthdate } = await request.json();
 
   if (!storyId || !premiseId || !childName) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -139,13 +141,16 @@ ${premise.prompt}
 Remember: FK Grade 2-3, 12-word sentence cap, faith beat in p4a and p4b.
 Output valid JSON only.`;
 
+  const ageYears: number = childAge ?? calcAgeYears(childBirthdate)
+  const systemPrompt = buildSystemPrompt(ageYears)
+
   try {
     const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
     const response = await genai.models.generateContent({
       model: "gemini-2.5-flash",
       config: {
-        systemInstruction: SYSTEM_PROMPT,
+        systemInstruction: systemPrompt,
         temperature: 0.9,
         topP: 0.95,
         responseMimeType: "application/json",
