@@ -18,7 +18,8 @@ export function getReadingLevelInstruction(ageYears: number): string {
  * Accounts for whether the birthday has occurred yet this calendar year.
  */
 export function calcAgeYears(birthdate: string): number {
-  const birth = new Date(birthdate)
+  const [year, month, day] = birthdate.split('-').map(Number)
+  const birth = new Date(year, month - 1, day)
   const now = new Date()
   const age = now.getFullYear() - birth.getFullYear()
   const hadBirthday =
