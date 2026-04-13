@@ -16,15 +16,29 @@ const STYLE_PREAMBLE =
   "No text, no words, no letters anywhere in the image.";
 
 export async function POST(request: Request) {
-  const { storyId, panelId, sceneDescription, childName, childAge } =
+  const { storyId, panelId, sceneDescription, childName, childAge, childId } =
     await request.json();
 
   if (!storyId || !panelId || !sceneDescription) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  let appearanceDescription = ''
+  if (childId) {
+    const { data: child } = await supabase
+      .from('children')
+      .select('appearance_description')
+      .eq('id', childId)
+      .single()
+    appearanceDescription = child?.appearance_description ?? ''
+  }
+
+  const heroDescription = appearanceDescription
+    ? `Hero appearance: ${appearanceDescription}`
+    : `The hero is ${childName || "a child"}, a ${childAge || 7}-year-old child rendered in storybook illustration style.`
+
   const prompt = `${STYLE_PREAMBLE}
-The hero is ${childName || "a child"}, a ${childAge || 7}-year-old child rendered in storybook illustration style.
+${heroDescription}
 ${sceneDescription}
 No text, no words, no letters, no numbers anywhere in the image.`;
 

@@ -61,6 +61,7 @@ export default function StoryViewerPage() {
   const storyRef = useRef<StoryData | null>(null);
   const childNameRef = useRef("the child");
   const childAgeRef = useRef(7);
+  const childIdRef = useRef<string>('');
   const queuedRef = useRef<Set<string>>(new Set());
   const activeGenerationsRef = useRef(0);
 
@@ -77,7 +78,7 @@ export default function StoryViewerPage() {
 
       const [{ data: storyRow }, { data: children }] = await Promise.all([
         supabase.from("stories").select("panels, premise_id, path").eq("id", id).single(),
-        supabase.from("children").select("name, birthdate").eq("parent_id", user.id).limit(1),
+        supabase.from("children").select("id, name, birthdate").eq("parent_id", user.id).limit(1),
       ]);
 
       if (!storyRow?.panels) { router.push("/app"); return; }
@@ -106,6 +107,7 @@ export default function StoryViewerPage() {
         setChildAge(age);
         childNameRef.current = name;
         childAgeRef.current = age;
+        childIdRef.current = children[0].id;
       }
 
       setLoading(false);
@@ -137,6 +139,7 @@ export default function StoryViewerPage() {
             sceneDescription: panel.scene_description,
             childName: childNameRef.current,
             childAge: childAgeRef.current,
+            childId: childIdRef.current,
           }),
         });
         if (res.ok) {
