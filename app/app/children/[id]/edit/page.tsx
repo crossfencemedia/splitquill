@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
@@ -15,11 +15,12 @@ export default function EditChildPage() {
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [child, setChild] = useState<Child | null>(null)
   const [gateSent, setGateSent] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [describing, setDescribing] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const justUnlocked = searchParams.get('photo_unlocked') === '1'
@@ -34,12 +35,15 @@ export default function EditChildPage() {
   }, [id])
 
   async function sendEmailGate() {
-    setGateSent(true)
-    await fetch('/api/email-gate/send', {
+    const res = await fetch('/api/email-gate/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ childId: id }),
     })
+    if (res.ok) {
+      setGateSent(true)
+    }
+    // If it fails, gateSent stays false and the button remains visible for retry
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -47,10 +51,19 @@ export default function EditChildPage() {
     if (!file) return
 
     setUploading(true)
+    setUploadError(null)
     const form = new FormData()
     form.append('photo', file)
     form.append('childId', id)
     const res = await fetch('/api/upload-photo', { method: 'POST', body: form })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setUploadError(body.error ?? 'Upload failed. Please try again.')
+      setUploading(false)
+      return
+    }
+
     const { photoUrl } = await res.json()
     setChild(c => c ? { ...c, photo_url: photoUrl } : c)
     setUploading(false)
@@ -140,6 +153,9 @@ export default function EditChildPage() {
                 className="hidden"
                 onChange={handlePhotoUpload}
               />
+              {uploadError && (
+                <p className="text-red-600 text-sm mt-2 text-center">{uploadError}</p>
+              )}
             </>
           )}
         </div>
