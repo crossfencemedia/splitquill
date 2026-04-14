@@ -47,9 +47,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 })
   }
 
-  const { data: { publicUrl } } = serviceClient.storage.from('child-photos').getPublicUrl(path)
+  // Store the storage path (not a public URL) since the bucket is private
+  await serviceClient.from('children').update({ photo_url: path }).eq('id', childId)
 
-  await serviceClient.from('children').update({ photo_url: publicUrl }).eq('id', childId)
+  // Return a short-lived signed URL so the UI can display the photo immediately
+  const { data: signedData, error: signError } = await serviceClient.storage
+    .from('child-photos')
+    .createSignedUrl(path, 3600)
 
-  return NextResponse.json({ photoUrl: publicUrl })
+  if (signError || !signedData) {
+    return NextResponse.json({ error: 'Upload succeeded but could not generate preview URL' }, { status: 500 })
+  }
+
+  return NextResponse.json({ photoUrl: signedData.signedUrl })
 }

@@ -21,8 +21,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No photo uploaded' }, { status: 404 })
   }
 
-  const imageRes = await fetch(child.photo_url)
-  const imageBuffer = await imageRes.arrayBuffer()
+  // Download directly via service client — bucket is private, no public URL available
+  const { data: fileData, error: downloadError } = await serviceClient.storage
+    .from('child-photos')
+    .download(child.photo_url)
+
+  if (downloadError || !fileData) {
+    return NextResponse.json({ error: 'Could not retrieve photo' }, { status: 500 })
+  }
+
+  const imageBuffer = await fileData.arrayBuffer()
   const base64Image = Buffer.from(imageBuffer).toString('base64')
 
   const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })

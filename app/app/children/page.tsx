@@ -13,11 +13,25 @@ type Child = {
 
 export default function MyChildrenPage() {
   const [children, setChildren] = useState<Child[]>([])
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.from('children').select('id, name, photo_url, photo_unlocked').then(({ data }) => {
-      setChildren(data ?? [])
+    supabase.from('children').select('id, name, photo_url, photo_unlocked').then(async ({ data }) => {
+      const kids = data ?? []
+      setChildren(kids)
+
+      const urls: Record<string, string> = {}
+      await Promise.all(
+        kids.filter(c => c.photo_url).map(async c => {
+          const res = await fetch(`/api/photo-url?childId=${c.id}`)
+          if (res.ok) {
+            const { signedUrl } = await res.json()
+            urls[c.id] = signedUrl
+          }
+        })
+      )
+      setSignedUrls(urls)
     })
   }, [])
 
@@ -38,9 +52,9 @@ export default function MyChildrenPage() {
             <Link key={child.id} href={`/app/children/${child.id}/edit`}>
               <div className="bg-white rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {child.photo_url ? (
+                  {signedUrls[child.id] ? (
                     <Image
-                      src={child.photo_url}
+                      src={signedUrls[child.id]}
                       alt={child.name}
                       width={48}
                       height={48}

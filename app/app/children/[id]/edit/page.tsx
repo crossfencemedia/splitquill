@@ -17,6 +17,7 @@ export default function EditChildPage() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const [child, setChild] = useState<Child | null>(null)
+  const [signedPhotoUrl, setSignedPhotoUrl] = useState<string | null>(null)
   const [gateSent, setGateSent] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [describing, setDescribing] = useState(false)
@@ -31,7 +32,16 @@ export default function EditChildPage() {
       .select('id, name, photo_url, photo_unlocked')
       .eq('id', id)
       .single()
-      .then(({ data }) => setChild(data))
+      .then(async ({ data }) => {
+        setChild(data)
+        if (data?.photo_url) {
+          const res = await fetch(`/api/photo-url?childId=${data.id}`)
+          if (res.ok) {
+            const { signedUrl } = await res.json()
+            setSignedPhotoUrl(signedUrl)
+          }
+        }
+      })
   }, [id])
 
   async function sendEmailGate() {
@@ -65,7 +75,8 @@ export default function EditChildPage() {
     }
 
     const { photoUrl } = await res.json()
-    setChild(c => c ? { ...c, photo_url: photoUrl } : c)
+    setSignedPhotoUrl(photoUrl)
+    setChild(c => c ? { ...c, photo_url: `${id}/photo.jpeg` } : c)
     setUploading(false)
 
     setDescribing(true)
@@ -98,10 +109,10 @@ export default function EditChildPage() {
             {child.name}&apos;s photo lets them star as the hero in every illustration.
           </p>
 
-          {child.photo_url && (
+          {signedPhotoUrl && (
             <div className="mb-4 flex justify-center">
               <Image
-                src={child.photo_url}
+                src={signedPhotoUrl}
                 alt={child.name}
                 width={128}
                 height={128}
