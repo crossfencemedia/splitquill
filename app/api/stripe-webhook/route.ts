@@ -5,10 +5,6 @@ import Stripe from 'stripe'
 
 export const runtime = 'nodejs'
 
-if (!process.env.STRIPE_WEBHOOK_SECRET) {
-  throw new Error('Missing STRIPE_WEBHOOK_SECRET')
-}
-
 function tierFromPriceId(priceId: string): 'premium' | 'ultra' | 'free' {
   if (priceId === process.env.STRIPE_PREMIUM_PRICE_ID) return 'premium'
   if (priceId === process.env.STRIPE_ULTRA_PRICE_ID) return 'ultra'
@@ -20,10 +16,13 @@ export async function POST(request: NextRequest) {
   const sig = request.headers.get('stripe-signature')
 
   if (!sig) return NextResponse.json({ error: 'Missing signature' }, { status: 400 })
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
+  }
 
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
+    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET)
   } catch {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }

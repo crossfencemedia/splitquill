@@ -1,7 +1,5 @@
 import Stripe from 'stripe'
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('Missing STRIPE_SECRET_KEY')
-}
-
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+// Non-null assertion: STRIPE_SECRET_KEY is required at runtime.
+// Avoid module-level throws — they fire during Next.js build-time module evaluation.
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
