@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/email-gate/confirm?token=${token}&childId=${childId}`
 
   const { data: emailData, error: emailError } = await resend.emails.send({
-    from: 'Splitquill <onboarding@resend.dev>',
+    from: 'Splitquill <noreply@splitquill.com>',
     to: [user.email!],
     subject: `Unlock photo upload for ${child.name}`,
     html: `
