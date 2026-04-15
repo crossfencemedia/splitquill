@@ -30,11 +30,15 @@ export async function GET(request: NextRequest) {
 
   const used = countRow?.count ?? 0
 
+  // Admin bypass — always show unlimited
+  const ADMIN_EMAILS = [process.env.ADMIN_EMAIL ?? '']
+  const isAdmin = ADMIN_EMAILS.includes(user.email ?? '')
+
   return NextResponse.json({
-    tier,
-    limit,
+    tier: isAdmin ? 'ultra' as Tier : tier,
+    limit: isAdmin ? 999 : limit,
     used,
-    remaining: Math.max(0, limit - used),
-    canGenerate: used < limit,
+    remaining: isAdmin ? 999 : Math.max(0, limit - used),
+    canGenerate: isAdmin ? true : used < limit,
   })
 }

@@ -157,6 +157,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Admin bypass — unlimited stories for the builder's account
+  const ADMIN_EMAILS = [process.env.ADMIN_EMAIL ?? '']
+  const isAdmin = ADMIN_EMAILS.includes(user.email ?? '')
+
   // Check subscription tier + story count
   const { data: sub } = await supabase
     .from('subscriptions')
@@ -180,7 +184,7 @@ export async function POST(request: Request) {
 
   const used = countRow?.count ?? 0
 
-  if (used >= limit) {
+  if (!isAdmin && used >= limit) {
     return NextResponse.json(
       { error: 'Story limit reached', tier, limit },
       { status: 403 }
