@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { Suspense, useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
@@ -11,7 +11,7 @@ type Child = {
   photo_unlocked: boolean
 }
 
-export default function EditChildPage() {
+function EditChildContent() {
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -179,5 +179,13 @@ export default function EditChildPage() {
         </button>
       </div>
     </div>
+  )
+}
+
+export default function EditChildPage() {
+  return (
+    <Suspense>
+      <EditChildContent />
+    </Suspense>
   )
 }
