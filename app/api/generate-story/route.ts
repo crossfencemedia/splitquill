@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     .eq('id', storyId)
     .single()
 
-  const userId = (storyRow?.children as { parent_id: string } | null)?.parent_id
+  const userId = (storyRow?.children as unknown as { parent_id: string } | null)?.parent_id
   if (!userId) return NextResponse.json({ error: 'Story not found' }, { status: 404 })
 
   if (userId !== user.id) {

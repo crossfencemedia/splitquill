@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
-import { createClient } from '@supabase/supabase-js'
+import { serviceClient as service } from '@/lib/supabase/service'
 import Stripe from 'stripe'
 
 export const runtime = 'nodejs'
 
-const service = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SECRET_KEY!
-)
+if (!process.env.STRIPE_WEBHOOK_SECRET) {
+  throw new Error('Missing STRIPE_WEBHOOK_SECRET')
+}
 
 function tierFromPriceId(priceId: string): 'premium' | 'ultra' | 'free' {
   if (priceId === process.env.STRIPE_PREMIUM_PRICE_ID) return 'premium'
@@ -34,7 +33,8 @@ export async function POST(request: NextRequest) {
     event.type === 'customer.subscription.updated'
   ) {
     const sub = event.data.object as Stripe.Subscription
-    const priceId = sub.items.data[0]?.price.id ?? ''
+    const item = sub.items.data[0]
+    const priceId = item?.price.id ?? ''
     const userId = sub.metadata?.userId ?? ''
 
     if (userId) {
@@ -45,7 +45,10 @@ export async function POST(request: NextRequest) {
           stripe_subscription_id: sub.id,
           tier: tierFromPriceId(priceId),
           status: sub.status,
-          current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+          // current_period_end moved from Subscription to SubscriptionItem in Stripe SDK v17+
+          current_period_end: item?.current_period_end
+            ? new Date(item.current_period_end * 1000).toISOString()
+            : null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'stripe_subscription_id' }

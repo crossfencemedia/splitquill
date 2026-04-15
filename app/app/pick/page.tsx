@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -37,7 +37,7 @@ const PREMISES = [
   },
 ];
 
-export default function PremisePickerPage() {
+function PremisePickerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [selected, setSelected] = useState<string | null>(null);
@@ -119,5 +119,13 @@ export default function PremisePickerPage() {
         {loading ? "Starting…" : "Begin this adventure"}
       </button>
     </main>
+  );
+}
+
+export default function PremisePickerPage() {
+  return (
+    <Suspense>
+      <PremisePickerContent />
+    </Suspense>
   );
 }
