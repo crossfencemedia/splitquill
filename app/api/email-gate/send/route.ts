@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/email-gate/confirm?token=${token}&childId=${childId}`
 
-  await resend.emails.send({
+  const { data: emailData, error: emailError } = await resend.emails.send({
     from: 'Splitquill <onboarding@resend.dev>',
     to: [user.email!],
     subject: `Unlock photo upload for ${child.name}`,
@@ -49,5 +49,10 @@ export async function POST(request: NextRequest) {
     `,
   })
 
-  return NextResponse.json({ ok: true })
+  if (emailError) {
+    console.error('Resend email error:', emailError)
+    return NextResponse.json({ error: emailError.message }, { status: 502 })
+  }
+
+  return NextResponse.json({ ok: true, emailId: emailData?.id })
 }
