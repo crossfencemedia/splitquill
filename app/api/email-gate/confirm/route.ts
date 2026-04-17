@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/lib/supabase/service'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -10,9 +11,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/app?gate_error=missing', process.env.NEXT_PUBLIC_APP_URL!))
   }
 
+  if (!rateLimit(`confirm:${childId}`, 5)) {
+    return NextResponse.redirect(new URL('/app?gate_error=toomany', process.env.NEXT_PUBLIC_APP_URL!))
+  }
+
   const { data: child } = await serviceClient
     .from('children')
-    .select('id, photo_unlock_token, photo_unlock_token_expires_at, photo_unlocked')
+    .select('id, parent_id, photo_unlock_token, photo_unlock_token_expires_at, photo_unlocked')
     .eq('id', childId)
     .single()
 

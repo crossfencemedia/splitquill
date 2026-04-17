@@ -3,8 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { serviceClient } from '@/lib/supabase/service'
 import { Resend } from 'resend'
 import { randomUUID } from 'crypto'
+import { rateLimit } from '@/lib/rate-limit'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+const COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes between emails per child
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -13,15 +16,26 @@ export async function POST(request: NextRequest) {
 
   const { childId } = await request.json() as { childId: string }
 
+  if (!rateLimit(`gate:${user.id}`, 5)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 })
+  }
+
   const { data: child } = await serviceClient
     .from('children')
-    .select('id, name, photo_unlocked')
+    .select('id, name, photo_unlocked, photo_unlock_token_expires_at')
     .eq('id', childId)
     .eq('parent_id', user.id)
     .single()
 
   if (!child) return NextResponse.json({ error: 'Child not found' }, { status: 404 })
   if (child.photo_unlocked) return NextResponse.json({ ok: true, alreadyUnlocked: true })
+
+  if (child.photo_unlock_token_expires_at) {
+    const lastSent = new Date(child.photo_unlock_token_expires_at).getTime() - 24 * 60 * 60 * 1000
+    if (Date.now() - lastSent < COOLDOWN_MS) {
+      return NextResponse.json({ ok: true, alreadySent: true })
+    }
+  }
 
   const token = randomUUID()
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24h

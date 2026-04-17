@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from '@/lib/supabase/server'
 import { serviceClient } from '@/lib/supabase/service'
+import { rateLimit } from '@/lib/rate-limit'
 
 export const maxDuration = 60;
 
@@ -10,6 +11,13 @@ const STYLE_PREAMBLE =
   "Warm vibrant colors. Soft rounded shapes. Expressive character faces. " +
   "Ages 5-9 audience. Single illustrated panel composition. " +
   "No text, no words, no letters anywhere in the image.";
+
+function sanitizePromptInput(text: string): string {
+  return text
+    .replace(/[\[\]{}]/g, '')
+    .replace(/\b(INJECT|IGNORE|OVERRIDE|SYSTEM|PROMPT|DRAW|GENERATE|RENDER)\b/gi, '')
+    .slice(0, 500)
+}
 
 export async function POST(request: Request) {
   const { storyId, panelId, sceneDescription, childName, childAge, childId } =
@@ -22,6 +30,10 @@ export async function POST(request: Request) {
   const authClient = await createClient()
   const { data: { user } } = await authClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (!rateLimit(`img:${user.id}`, 20)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 })
+  }
 
   let appearanceDescription = ''
   if (childId) {
@@ -38,9 +50,11 @@ export async function POST(request: Request) {
     ? `Hero appearance: ${appearanceDescription}`
     : `The hero is ${childName || "a child"}, a ${childAge || 7}-year-old child rendered in storybook illustration style.`
 
+  const cleanScene = sanitizePromptInput(sceneDescription)
+
   const prompt = `${STYLE_PREAMBLE}
 ${heroDescription}
-${sceneDescription}
+${cleanScene}
 No text, no words, no letters, no numbers anywhere in the image.`;
 
   try {

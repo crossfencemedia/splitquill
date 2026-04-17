@@ -3,50 +3,43 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
-export default function SignUpPage() {
-  const [email, setEmail] = useState("");
+export default function ResetPasswordPage() {
+  const router = useRouter();
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [done, setDone] = useState(false);
 
-  async function handleSignUp(e: React.FormEvent) {
+  async function handleReset(e: React.FormEvent) {
     e.preventDefault();
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
     setLoading(true);
     setError("");
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       setError(error.message);
       setLoading(false);
     } else {
-      setEmailSent(true);
+      setDone(true);
+      setTimeout(() => router.push("/app"), 2000);
     }
   }
 
-  if (emailSent) {
+  if (done) {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen px-6 text-center">
         <Link href="/" className="mb-8 text-3xl select-none" aria-label="Splitquill home">✦</Link>
-
         <h1 className="text-3xl font-bold mb-3" style={{ color: "var(--sq-purple)" }}>
-          Check your email
+          Password updated
         </h1>
-        <p className="text-stone-600 max-w-sm mb-6">
-          We sent a confirmation link to <strong>{email}</strong>. Click the link in your email to activate your account.
-        </p>
-        <p className="text-stone-400 text-sm max-w-xs mb-8">
-          Didn&apos;t get it? Check your spam folder, or wait a minute and try signing up again.
-        </p>
-
-        <Link
-          href="/signin"
-          className="px-8 py-3 rounded-2xl text-white font-semibold transition-opacity hover:opacity-90"
-          style={{ background: "var(--sq-purple)" }}
-        >
-          Go to sign in
-        </Link>
+        <p className="text-stone-600">Redirecting you to your stories&hellip;</p>
       </main>
     );
   }
@@ -56,32 +49,33 @@ export default function SignUpPage() {
       <Link href="/" className="mb-8 text-3xl select-none" aria-label="Splitquill home">✦</Link>
 
       <h1 className="text-3xl font-bold mb-1" style={{ color: "var(--sq-purple)" }}>
-        Create your account
+        Set a new password
       </h1>
-      <p className="text-stone-500 mb-8">Your child&apos;s adventure starts here.</p>
+      <p className="text-stone-500 mb-8">Choose a new password for your account.</p>
 
-      <form onSubmit={handleSignUp} method="post" className="w-full max-w-sm flex flex-col gap-4">
+      <form onSubmit={handleReset} method="post" className="w-full max-w-sm flex flex-col gap-4">
         <div>
-          <label htmlFor="signup-email" className="sr-only">Parent email</label>
+          <label htmlFor="new-password" className="sr-only">New password</label>
           <input
-            id="signup-email"
-            type="email"
-            placeholder="Parent email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
+            id="new-password"
+            type="password"
+            placeholder="New password (8+ characters)"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
             required
-            autoComplete="email"
+            minLength={8}
+            autoComplete="new-password"
             className="w-full px-4 py-3 rounded-xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
         <div>
-          <label htmlFor="signup-password" className="sr-only">Password</label>
+          <label htmlFor="confirm-password" className="sr-only">Confirm password</label>
           <input
-            id="signup-password"
+            id="confirm-password"
             type="password"
-            placeholder="Password (8+ characters)"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
+            placeholder="Confirm password"
+            value={confirm}
+            onChange={e => setConfirm(e.target.value)}
             required
             minLength={8}
             autoComplete="new-password"
@@ -97,16 +91,9 @@ export default function SignUpPage() {
           className="w-full py-4 rounded-2xl text-white font-semibold text-lg transition-opacity hover:opacity-90 disabled:opacity-50"
           style={{ background: "var(--sq-purple)" }}
         >
-          {loading ? "Creating account\u2026" : "Create account"}
+          {loading ? "Updating\u2026" : "Update password"}
         </button>
       </form>
-
-      <p className="mt-6 text-stone-500 text-sm">
-        Already have an account?{" "}
-        <Link href="/signin" className="font-semibold" style={{ color: "var(--sq-purple)" }}>
-          Sign in
-        </Link>
-      </p>
     </main>
   );
 }

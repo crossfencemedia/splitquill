@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function WelcomePage() {
   return (
     <main className="flex flex-col items-center justify-center min-h-screen px-6 text-center">
-      <div className="mb-6 text-6xl select-none">✦</div>
+      <div className="mb-6 text-6xl select-none" aria-hidden="true">✦</div>
 
       <h1 className="text-5xl font-bold mb-3" style={{ color: "var(--sq-purple)" }}>
         Splitquill
@@ -29,7 +29,7 @@ export default function WelcomePage() {
         </Link>
       </div>
 
-      <p className="mt-10 text-sm text-stone-400 max-w-xs">
+      <p className="mt-10 text-sm text-stone-500 max-w-xs">
         Faith-values-aware adventures. Your child&apos;s photo. Four unique story paths.
       </p>
     </main>

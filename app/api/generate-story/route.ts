@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { GoogleGenAI } from "@google/genai";
 import { getReadingLevelInstruction, calcAgeYears } from '@/lib/reading-level';
 import { TIER_LIMITS, Tier } from '@/lib/tier-limits';
+import { rateLimit } from '@/lib/rate-limit';
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (service role — bypasses RLS for server writes)
@@ -125,6 +126,10 @@ export async function POST(request: Request) {
   const authClient = await createClient()
   const { data: { user } } = await authClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (!rateLimit(`story:${user.id}`, 5)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 })
+  }
 
   if (!storyId || !premiseId || !childName) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
